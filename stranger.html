@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Stranger - The Author's Lens</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Noto+Serif+KR:wght@300;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500&display=swap');
+
+        body {
+            margin: 0;
+            overflow-x: hidden; 
+            background-color: #fff; /* 밝은 배경 */
+            font-family: 'Noto Serif KR', serif;
+            cursor: none; 
+            height: 200vh; 
+        }
+
+        /* 2D 배경: 눈부신 해변 느낌 */
+        #bg-layer {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* 이미지가 있으면 사용, 없으면 CSS 그라디언트 */
+            background: url('background_stranger.jpg') no-repeat center center/cover, radial-gradient(circle at center, #fff, #ffeebb, #ffcc00);
+            opacity: 0.8; 
+            z-index: 0;
+            transition: all 1s ease;
+            filter: contrast(1.2) brightness(1.2); /* 눈부심 효과 */
+        }
+
+        /* 아지랑이 효과 (열기) */
+        #heat-haze {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* 노이즈 텍스처 (데이터 URI로 직접 삽입하여 파일 없어도 작동) */
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.4'/%3E%3C/svg%3E");
+            opacity: 0.15;
+            z-index: 1;
+            pointer-events: none;
+            animation: haze 0.2s infinite linear;
+        }
+
+        @keyframes haze {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-2px, 2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-2px, -2px); }
+            100% { transform: translate(2px, 2px); }
+        }
+
+        #canvas-container {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        /* UI 레이어 */
+        #ui-layer {
+            position: fixed;
+            bottom: 5%; /* 15% -> 5%로 하향 조정 */
+            width: 100%;
+            text-align: center;
+            z-index: 3;
+            color: #333; /* 검은색 글씨 */
+            pointer-events: none; 
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px; /* 간격 조정 */
+        }
+
+        .sentence-container {
+            font-family: 'Oswald', sans-serif;
+            font-size: 2.2rem;
+            text-shadow: 0 0 30px rgba(255, 100, 0, 0.9); /* 붉은 빛 번짐 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            letter-spacing: 2px;
+            font-weight: bold;
+            color: #5a0000; /* 글자색 진한 붉은색 */
+        }
+
+        .drop-zone {
+            width: 180px;
+            height: 60px;
+            border-bottom: 4px solid #ff4500;
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            color: #ff4500; 
+            font-weight: bold;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.4); 
+            pointer-events: auto; 
+        }
+
+        .drop-zone.highlight {
+            border-bottom: 4px solid #ff0000;
+            background: rgba(255, 69, 0, 0.4);
+            box-shadow: 0 0 30px rgba(255, 69, 0, 0.8);
+        }
+
+        /* 커서 (타오르는 태양) */
+        #custom-cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 60px;
+            height: 60px;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 0 10px orange);
+            transition: transform 0.1s;
+        }
+        
+        /* 아카이브 모달 */
+        #archive-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.95); /* 밝은 배경 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1.5s ease;
+            z-index: 100;
+        }
+
+        #archive-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .archive-content {
+            background: transparent;
+            padding: 50px;
+            max-width: 800px;
+            border: 2px solid #ff4500;
+            text-align: center;
+            color: #333;
+        }
+        
+        .archive-title {
+            font-family: 'Cinzel', serif;
+            font-size: 4rem;
+            color: #ff4500;
+            margin-bottom: 30px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        .archive-quote {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.4rem;
+            line-height: 2;
+            color: #555;
+            margin-bottom: 40px;
+            font-style: italic;
+            border-left: 4px solid #ff4500;
+            padding-left: 20px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        .archive-desc {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #666;
+            margin-bottom: 50px;
+            text-align: justify; 
+            padding: 0 20px;
+        }
+
+        .close-btn {
+            padding: 15px 50px;
+            border: 2px solid #ff4500;
+            background: transparent;
+            color: #ff4500;
+            cursor: pointer;
+            font-family: 'Oswald', sans-serif;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            transition: all 0.3s;
+            pointer-events: auto;
+            font-weight: bold;
+        }
+        
+        .close-btn:hover {
+            background: #ff4500;
+            color: #fff;
+            box-shadow: 0 0 30px rgba(255, 69, 0, 0.5);
+        }
+
+        /* 뒤로 가기 버튼 */
+        #back-btn {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            z-index: 50;
+            color: rgba(0, 0, 0, 0.6);
+            font-family: 'Oswald', sans-serif;
+            font-size: 1rem;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            padding: 10px;
+            font-weight: bold;
+        }
+
+        #back-btn:hover {
+            color: #ff4500;
+            transform: translateX(-5px);
+        }
+
+        #back-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+        #loading-error-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #ff4444; font-family: 'Noto Serif KR', serif; font-size: 1.2rem;
+            text-align: center; z-index: 10; display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bg-layer"></div>
+    <div id="heat-haze"></div>
+    <div id="canvas-container"></div>
+    <div id="loading-error-message"></div>
+    
+    <!-- 배경 음악: stranger_bgm.mp3 파일을 같은 폴더에 넣어주세요 -->
+    <audio id="bgm" loop>
+        <source src="stranger_bgm.mp3" type="audio/mpeg">
+    </audio>
+
+    <a href="index.html" id="back-btn">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        BACK TO GALLERY
+    </a>
+
+    <div style="position: fixed; top: 30px; width: 100%; text-align: center; color: rgba(0,0,0,0.5); font-family: 'Oswald', sans-serif; pointer-events: none; z-index: 5; font-size: 1.2rem; letter-spacing: 5px; font-weight: bold;">
+        THE BLINDING HEAT
+    </div>
+
+    <!-- UI: 더 아래쪽으로 배치됨 -->
+    <div id="ui-layer">
+        <div class="sentence-container">
+            "TODAY <span class="drop-zone" id="zone-mom" data-target="MOM"></span> DIED. OR MAYBE <span class="drop-zone" id="zone-yesterday" data-target="YESTERDAY"></span>, I DON'T KNOW."
+        </div>
+        
+        <p style="margin-top: 10px; font-size: 1.2rem; opacity: 1; font-family: 'Noto Serif KR', serif; color: #5a3a22; text-shadow: 0 0 5px rgba(255,255,255,0.8); font-weight: bold;">
+            "오늘 엄마가 죽었다. 아니, 어쩌면 어제."
+        </p>
+
+        <p style="margin-top: 5px; font-size: 0.9rem; opacity: 0.7; font-family: sans-serif; color: #333;">
+            Drag the floating words to complete the sentence.
+        </p>
+    </div>
+
+    <!-- 커서 (태양 아이콘) -->
+    <div id="custom-cursor">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ff4500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5" fill="#ffcc00" stroke="none"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/>
+        </svg>
+    </div>
+
+    <!-- 아카이브 -->
+    <div id="archive-modal">
+        <div class="archive-content">
+            <h2 class="archive-title">L'Étranger</h2>
+            
+            <div class="archive-quote">
+                "Aujourd’hui, maman est morte. Ou peut-être hier, je ne sais pas."<br>
+                "오늘 엄마가 죽었다. 아니, 어쩌면 어제."
+            </div>
+            
+            <div class="archive-desc">
+                <p>알베르 카뮈의 &lt;이방인&gt;은 세상의 관습과 도덕에 무관심한 남자, 뫼르소의 이야기입니다. 그는 어머니의 장례식에서 울지 않았다는 이유로, 그리고 살인을 저지른 이유가 단지 "태양 때문이었다"고 말한다는 이유로 사회로부터 '이방인' 취급을 받으며 사형을 선고받습니다.</p>
+                <br>
+                <p>작열하는 태양 아래서 벌어진 우발적인 살인, 그리고 이어지는 부조리한 재판 과정은 인간 존재의 근원적인 고독과 세상의 부조리함을 날카롭게 파헤칩니다.</p>
+            </div>
+            
+            <button class="close-btn" onclick="location.reload()">RETURN TO THE SUN</button>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+        function showErrorMessage(message) {
+            const errorDiv = document.getElementById('loading-error-message');
+            errorDiv.innerHTML = message;
+            errorDiv.style.display = 'block';
+            console.error(message);
+        }
+
+        // --- 0. 태양 텍스처 자동 생성 (더 붉고 강렬하게) ---
+        function createSunTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            const gradient = ctx.createRadialGradient(256, 256, 50, 256, 256, 256);
+            gradient.addColorStop(0, '#ffffff'); // 중심은 흰색 (가장 뜨거움)
+            gradient.addColorStop(0.2, '#fff700'); // 노란색
+            gradient.addColorStop(0.6, '#ff8800'); // 주황색
+            gradient.addColorStop(1, '#ff0000'); // 바깥은 붉은색
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // 플레어 효과 (격렬한 노이즈)
+            for(let i=0; i<8000; i++) {
+                ctx.fillStyle = `rgba(255, 200, 100, ${Math.random() * 0.6})`;
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const w = Math.random() * 4;
+                const h = Math.random() * 2;
+                ctx.fillRect(x, y, w, h);
+            }
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- 1. 씬 초기화 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        // 밝은 안개 (눈부심 효과)
+        scene.fog = new THREE.FogExp2(0xffffee, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 25); 
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+        } catch (error) {
+            showErrorMessage("WebGL 초기화 실패.");
+        }
+
+        if (renderer) { 
+            // --- 2. 조명 설정 (강렬하게) ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.PointLight(0xff4500, 5, 100);
+            sunLight.position.set(0, 0, 0); 
+            scene.add(sunLight);
+
+            // --- 3. 오브젝트 생성 ---
+            const words = []; 
+            let sunMesh = null;
+
+            // (A) 거대한 태양 (이글거림 강화)
+            const sunTexture = createSunTexture();
+            const sunGeometry = new THREE.SphereGeometry(6, 64, 64);
+            const sunMaterial = new THREE.MeshBasicMaterial({ 
+                map: sunTexture,
+                color: 0xffffff,
+            });
+
+            sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+            sunMesh.position.set(0, 2, -10); // 뒤로 조금 더 뺌
+            scene.add(sunMesh);
+
+            // 태양 코로나 (후광) - 더 크고 붉게
+            const glowGeometry = new THREE.SphereGeometry(7, 64, 64);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff4500,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.BackSide
+            });
+            const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+            sunMesh.add(glowMesh);
+
+
+            // (B) 3D 텍스트
+            const fontLoader = new FontLoader();
+            fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
+                
+                const textMaterial = new THREE.MeshBasicMaterial({ 
+                    color: 0xff4500, 
+                });
+
+                const createWord = (text, x, y, z) => {
+                    const geometry = new TextGeometry(text, {
+                        font: font, size: 1.2, height: 0.2, curveSegments: 12,
+                        bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.01, bevelSegments: 3
+                    });
+                    geometry.center();
+                    const mesh = new THREE.Mesh(geometry, textMaterial);
+                    mesh.position.set(x, y, z);
+                    
+                    mesh.userData = { 
+                        text: text, 
+                        isDragging: false, 
+                        floatOffset: Math.random() * 100,
+                        basePos: new THREE.Vector3(x, y, z) 
+                    };
+                    scene.add(mesh);
+                    words.push(mesh);
+                };
+
+                createWord('MOM', -7, 6, 2); 
+                createWord('YESTERDAY', 7, -4, 3);
+
+            });
+
+            // --- 4. 인터랙션 ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            let selectedObject = null;
+            let offset = new THREE.Vector3();
+            let intersection = new THREE.Vector3();
+
+            let mouseX = 0;
+            let mouseY = 0;
+
+            const cursor = document.getElementById('custom-cursor');
+            
+            // 음악 재생 시도 (사용자 상호작용 시)
+            window.addEventListener('mousedown', () => {
+                const bgm = document.getElementById('bgm');
+                if (bgm.paused) {
+                    bgm.play().catch(e => console.log("Audio play failed:", e));
+                }
+            }, { once: true });
+
+            document.addEventListener('mousemove', (e) => {
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+                
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                mouseX = (e.clientX - window.innerWidth / 2) * 0.001; 
+                mouseY = (e.clientY - window.innerHeight / 2) * 0.001;
+                
+                raycaster.setFromCamera(mouse, camera);
+
+                if (selectedObject) {
+                    if (raycaster.ray.intersectPlane(plane, intersection)) {
+                        selectedObject.position.copy(intersection.sub(offset));
+                    }
+                } else {
+                    const intersects = raycaster.intersectObjects(words);
+                    if (intersects.length > 0) {
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1.5) rotate(180deg)'; 
+                        cursor.style.filter = 'drop-shadow(0 0 15px red)';
+                    } else {
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1) rotate(0deg)';
+                        cursor.style.filter = 'drop-shadow(0 0 10px orange)';
+                    }
+                }
+            });
+
+            window.addEventListener('mousedown', (e) => {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(words);
+                if (intersects.length > 0) {
+                    selectedObject = intersects[0].object;
+                    selectedObject.userData.isDragging = true;
+                    selectedObject.scale.set(1.2, 1.2, 1.2);
+
+                    plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(plane.normal), selectedObject.position);
+
+                    if (raycaster.ray.intersectPlane(plane, intersection)) {
+                        offset.copy(intersection).sub(selectedObject.position);
+                    }
+                }
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (selectedObject) {
+                    const screenPos = selectedObject.position.clone().project(camera);
+                    const x = (screenPos.x * .5 + .5) * window.innerWidth;
+                    const y = (-(screenPos.y * .5) + .5) * window.innerHeight;
+
+                    checkDropZone(x, y, selectedObject);
+
+                    selectedObject.userData.isDragging = false;
+                    selectedObject.scale.set(1, 1, 1);
+                    selectedObject = null;
+                }
+            });
+
+            let correctCount = 0;
+            function checkDropZone(x, y, object) {
+                const text = object.userData.text;
+                const zone = document.getElementById(`zone-${text.toLowerCase()}`);
+
+                if (zone) {
+                    const rect = zone.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                        zone.textContent = text;
+                        zone.classList.add('highlight');
+                        
+                        scene.remove(object);
+                        const index = words.indexOf(object);
+                        if (index > -1) words.splice(index, 1);
+
+                        correctCount++;
+                        if (correctCount === 2) { 
+                            setTimeout(triggerWin, 500);
+                        }
+                    }
+                }
+            }
+
+            function triggerWin() {
+                // 성공 시 화면이 붉게 타오르는 효과
+                document.getElementById('bg-layer').style.background = 'radial-gradient(circle at center, #fff, #ff8800, #ff0000)';
+                document.getElementById('bg-layer').style.filter = 'contrast(1.5) brightness(1.5)';
+                
+                document.getElementById('archive-modal').classList.add('active');
+                document.body.style.cursor = 'auto';
+                document.getElementById('custom-cursor').style.display = 'none';
+            }
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // --- 5. 애니메이션 루프 ---
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const time = Date.now() * 0.001;
+                const scrollY = window.scrollY;
+
+                // 1. 태양 애니메이션
+                if (sunMesh) {
+                    // 이글거리는 효과 (스케일 진동)
+                    const scale = 1 + Math.sin(time * 2) * 0.02;
+                    sunMesh.scale.set(scale, scale, scale);
+                    
+                    // 천천히 회전
+                    sunMesh.rotation.y += 0.002;
+                    sunMesh.rotation.z += 0.001;
+
+                    // 마우스 따라 시선 (살짝 움직임)
+                    sunMesh.position.x += (mouseX * 5 - sunMesh.position.x) * 0.05;
+                    sunMesh.position.y += (2 - mouseY * 5 - sunMesh.position.y) * 0.05;
+                }
+
+                // 2. 텍스트 애니메이션 (열기에 녹아내리듯 흐물거림)
+                words.forEach((word) => {
+                    if (!word.userData.isDragging) {
+                        word.position.y = word.userData.basePos.y + Math.sin(time * 2 + word.userData.floatOffset) * 0.2;
+                        word.rotation.z = Math.sin(time * 3 + word.userData.floatOffset) * 0.1; // 좌우 흔들림
+                    }
+                });
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        } 
+    </script>
+</body>
+</html>

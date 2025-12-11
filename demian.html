@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demian - The Author's Lens</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Noto+Serif+KR:wght@300;600&display=swap');
+
+        body {
+            margin: 0;
+            overflow-x: hidden; 
+            background-color: #111; 
+            font-family: 'Noto Serif KR', serif;
+            cursor: none; 
+            height: 200vh; 
+        }
+
+        /* 2D 배경 */
+        #bg-layer {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('background.jpg') no-repeat center center/cover, linear-gradient(to bottom, #232526, #414345);
+            background-size: cover; 
+            opacity: 0.7; 
+            z-index: 0;
+            transition: opacity 1s ease;
+        }
+
+        /* 3D 캔버스 레이어 */
+        #canvas-container {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI 레이어 */
+        #ui-layer {
+            position: fixed;
+            bottom: 15%;
+            width: 100%;
+            text-align: center;
+            z-index: 2;
+            color: #fff;
+            pointer-events: none; 
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sentence-container {
+            font-family: 'Cinzel', serif;
+            font-size: 2rem;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .drop-zone {
+            width: 140px;
+            height: 50px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.6);
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            color: #ffd700; 
+            font-weight: bold;
+            transition: all 0.3s ease;
+            background: rgba(0,0,0,0.3); 
+            pointer-events: auto; 
+        }
+
+        .drop-zone.highlight {
+            border-bottom: 2px solid #ffd700;
+            background: rgba(255, 215, 0, 0.2);
+        }
+
+        /* 커서 (진중한 새) */
+        #custom-cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 50px;
+            height: 50px;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            filter: drop-shadow(0 0 5px rgba(255,255,255,0.8));
+            transition: transform 0.1s;
+        }
+        
+        /* 아카이브 모달 */
+        #archive-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+            z-index: 100;
+        }
+
+        #archive-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .archive-content {
+            background: #1a1a1a;
+            padding: 50px;
+            max-width: 800px;
+            border: 1px solid #555;
+            box-shadow: 0 0 50px rgba(255, 215, 0, 0.2);
+            text-align: center;
+            color: #fff;
+        }
+        
+        .archive-title {
+            font-family: 'Cinzel', serif;
+            font-size: 3rem;
+            color: #ffd700;
+            margin-bottom: 20px;
+        }
+
+        /* 인용문 스타일 */
+        .archive-quote {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.3rem;
+            line-height: 1.8;
+            color: #eee;
+            margin-bottom: 30px;
+            font-style: italic;
+            border-left: 3px solid #ffd700;
+            padding-left: 20px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        /* 설명글 스타일 (행간 복구) */
+        .archive-desc {
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1rem;
+            line-height: 1.8;
+            color: #ccc;
+            margin-bottom: 40px;
+            text-align: justify; 
+            padding: 0 20px;
+            word-break: keep-all; 
+        }
+
+        .close-btn {
+            padding: 12px 40px;
+            border: 1px solid #fff;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+        
+        .close-btn:hover {
+            background: #fff;
+            color: #000;
+        }
+
+        /* 스크롤 유도 문구 */
+        #scroll-indicator {
+            position: fixed;
+            top: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Cinzel', serif;
+            pointer-events: none;
+            z-index: 5;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+
+        /* 뒤로 가기 버튼 */
+        #back-btn {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            z-index: 50;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            pointer-events: auto;
+            padding: 10px;
+        }
+
+        #back-btn:hover {
+            color: #ffd700;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            transform: translateX(-5px);
+        }
+
+        #back-btn svg { width: 20px; height: 20px; fill: currentColor; }
+
+
+        #loading-error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-family: 'Noto Serif KR', serif;
+            font-size: 1.2rem;
+            text-align: center;
+            z-index: 10;
+            display: none;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="bg-layer"></div>
+    <div id="canvas-container"></div>
+    <div id="loading-error-message"></div>
+    
+    <!-- 배경 음악: demian_bgm.mp3 파일을 같은 폴더에 넣어주세요 -->
+    <audio id="bgm" loop>
+        <source src="demian_bgm.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- 스크롤 유도 -->
+    <div id="scroll-indicator">SCROLL & MOVE MOUSE</div>
+
+    <a href="index.html" id="back-btn">
+        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        BACK TO GALLERY
+    </a>
+
+    <!-- UI -->
+    <div id="ui-layer">
+        <!-- 1. 빈칸 문장 -->
+        <div class="sentence-container">
+            The <span class="drop-zone" id="zone-bird" data-target="Bird"></span> fights its way out of the <span class="drop-zone" id="zone-egg" data-target="Egg"></span>.
+        </div>
+        
+        <!-- 2. 한글 번역 -->
+        <p style="margin-top: 15px; font-size: 1.1rem; opacity: 0.9; font-family: 'Noto Serif KR', serif; color: #ffeebb; text-shadow: 0 0 5px rgba(255, 215, 0, 0.3);">
+            "새는 알에서 나오려고 투쟁한다."
+        </p>
+
+        <!-- 3. 안내 문구 (검정색 텍스트) -->
+        <p style="margin-top: 10px; font-size: 0.9rem; color: #000; font-weight: bold; font-family: sans-serif; text-shadow: 0 0 8px rgba(255,255,255,0.6);">
+            Drag the floating words to complete the sentence.
+        </p>
+    </div>
+
+    <!-- 커서 (진중한 새 - 매/독수리 실루엣) -->
+    <div id="custom-cursor">
+        <svg viewBox="0 0 100 100" fill="white" style="filter: drop-shadow(0px 0px 3px black);">
+            <path d="M50,20 C60,10 80,5 95,15 C80,25 70,40 60,50 C70,60 85,65 90,80 C70,75 55,65 50,55 C45,65 30,75 10,80 C15,65 30,60 40,50 C30,40 20,25 5,15 C20,5 40,10 50,20 Z"/>
+        </svg>
+    </div>
+
+    <!-- 아카이브 (내용 복원: br 제거) -->
+    <div id="archive-modal">
+        <div class="archive-content">
+            <h2 class="archive-title">DEMIAN</h2>
+            
+            <div class="archive-quote">
+                "새는 알에서 나오려고 투쟁한다. 알은 세계이다.<br>
+                태어나려는 자는 하나의 세계를 깨뜨려야 한다."
+            </div>
+            
+            <div class="archive-desc">
+                <p>헤르만 헤세의 &lt;데미안&gt;은 유년기의 안온한 세계와 어른의 거친 세계 사이에서 방황하는 한 영혼의 치열한 성장 기록입니다. 주인공 싱클레어는 선과 악, 빛과 어둠이 공존하는 혼란 속에서 자신만의 길을 찾기 위해 끊임없이 투쟁합니다.</p>
+                <br>
+                <p>우리가 완성한 이 문장은 작품 전체를 관통하는 핵심 주제입니다. '알'은 우리를 보호하지만 동시에 가두는 기존의 규범과 가치관을 상징합니다. 진정한 자아(새)로 다시 태어나기 위해서는, 그 안락한 껍질을 깨고 나오는 고통과 파괴를 감내해야만 합니다. 헤세는 이 과정을 통해 우리 내면에 잠든 신성, 즉 '아프락사스'를 향해 비상하라는 영원한 메시지를 전합니다.</p>
+            </div>
+            
+            <button class="close-btn" onclick="location.reload()">EXPLORE AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+        function showErrorMessage(message) {
+            const errorDiv = document.getElementById('loading-error-message');
+            errorDiv.innerHTML = message;
+            errorDiv.style.display = 'block';
+            console.error(message);
+        }
+
+        // --- 0. 고퀄리티 알 텍스처 자동 생성 ---
+        function createDetailedEggTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 2048; // 해상도 증가
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // 베이스 컬러 (따뜻한 크림색)
+            const gradient = ctx.createRadialGradient(1024, 512, 100, 1024, 512, 1024);
+            gradient.addColorStop(0, '#fdfbf0');
+            gradient.addColorStop(1, '#e3d8b8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 2048, 1024);
+
+            // 노이즈 1: 미세한 질감
+            for (let i = 0; i < 50000; i++) {
+                const x = Math.random() * 2048;
+                const y = Math.random() * 1024;
+                ctx.fillStyle = `rgba(0,0,0, ${Math.random() * 0.05})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+
+            // 노이즈 2: 달걀 특유의 점박이
+            for (let i = 0; i < 3000; i++) {
+                const x = Math.random() * 2048;
+                const y = Math.random() * 1024;
+                const radius = Math.random() * 2 + 0.5;
+                ctx.fillStyle = Math.random() > 0.5 ? 'rgba(100, 60, 20, 0.15)' : 'rgba(180, 180, 180, 0.1)';
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        // --- 1. 씬 초기화 ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        // 안개 효과 추가 (깊이감)
+        scene.fog = new THREE.FogExp2(0x111111, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 20); 
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true; // 그림자 활성화
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+        } catch (error) {
+            showErrorMessage("WebGL 초기화 실패.");
+        }
+
+        if (renderer) { 
+            // --- 2. 조명 설정 (입체감 핵심) ---
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(ambientLight);
+
+            // 주 조명 (따뜻한 빛)
+            const mainLight = new THREE.DirectionalLight(0xffeebb, 1.5);
+            mainLight.position.set(5, 5, 10);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+
+            // 림 라이트 (뒤에서 비치는 푸른 빛 - 윤곽선 강조)
+            const rimLight = new THREE.SpotLight(0x4455ff, 2);
+            rimLight.position.set(-10, 10, -5);
+            rimLight.lookAt(0, 0, 0);
+            scene.add(rimLight);
+
+            // --- 3. 오브젝트 생성 ---
+            const words = []; 
+            let eggMesh = null;
+
+            // (A) 거대하고 질감 있는 3D 알
+            const eggGeometry = new THREE.SphereGeometry(4.5, 128, 128); // 크기 대폭 확대 (반지름 4.5)
+            eggGeometry.scale(1, 1.35, 1); // 알 모양 변형
+            
+            const eggMaterial = new THREE.MeshStandardMaterial({
+                map: createDetailedEggTexture(),
+                color: 0xffffff,
+                roughness: 0.6, // 빛이 은은하게 퍼지도록
+                metalness: 0.1,
+                bumpScale: 0.02,
+            });
+
+            eggMesh = new THREE.Mesh(eggGeometry, eggMaterial);
+            eggMesh.position.set(0, 0, -5); // 약간 뒤로 배치
+            eggMesh.castShadow = true;
+            eggMesh.receiveShadow = true;
+            scene.add(eggMesh);
+
+            // (B) 3D 텍스트 (Bird, Egg)
+            const fontLoader = new FontLoader();
+            fontLoader.load('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json', function (font) {
+                
+                // 텍스트 재질 (약간 투명하고 빛나는 느낌)
+                const textMaterial = new THREE.MeshPhysicalMaterial({ 
+                    color: 0xffffff, 
+                    emissive: 0x333333,
+                    metalness: 0.1, 
+                    roughness: 0.1,
+                    transmission: 0.2, 
+                    thickness: 1,
+                    clearcoat: 1
+                });
+
+                const createWord = (text, x, y, z) => {
+                    const geometry = new TextGeometry(text, {
+                        font: font, size: 1.2, height: 0.4, curveSegments: 12,
+                        bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 4
+                    });
+                    geometry.center();
+                    const mesh = new THREE.Mesh(geometry, textMaterial);
+                    mesh.position.set(x, y, z);
+                    mesh.castShadow = true;
+                    mesh.userData = { 
+                        text: text, 
+                        isDragging: false, 
+                        floatOffset: Math.random() * 100,
+                        basePos: new THREE.Vector3(x, y, z) // 기준 위치 저장
+                    };
+                    scene.add(mesh);
+                    words.push(mesh);
+                };
+
+                // 알 주변에 텍스트 배치
+                createWord('Bird', -5, 2, 5); 
+                createWord('Egg', 5, -2, 5);
+
+            });
+
+            // --- 4. 인터랙션 (마우스/스크롤 반응) ---
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            let selectedObject = null;
+            let offset = new THREE.Vector3();
+            let intersection = new THREE.Vector3();
+
+            // 마우스 및 스크롤 상태 변수
+            let targetRotationX = 0;
+            let targetRotationY = 0;
+            let mouseX = 0;
+            let mouseY = 0;
+
+            const cursor = document.getElementById('custom-cursor');
+            
+            // 음악 재생 시도
+            window.addEventListener('mousedown', () => {
+                const bgm = document.getElementById('bgm');
+                if (bgm.paused) {
+                    bgm.play().catch(e => console.log("Audio play failed:", e));
+                }
+            }, { once: true });
+
+            document.addEventListener('mousemove', (e) => {
+                // 커서 이동
+                cursor.style.left = e.clientX + 'px';
+                cursor.style.top = e.clientY + 'px';
+                
+                // 3D 좌표용 마우스
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+                // 알 회전용 마우스 좌표 (화면 중심 기준)
+                mouseX = (e.clientX - window.innerWidth / 2) * 0.002; // 감도 증가
+                mouseY = (e.clientY - window.innerHeight / 2) * 0.002;
+                
+                // 마우스 위치에 따른 알 회전 목표값 설정
+                targetRotationY = mouse.x * 0.5; // 좌우 회전
+                targetRotationX = -mouse.y * 0.3; // 상하 회전
+
+                raycaster.setFromCamera(mouse, camera);
+
+                if (selectedObject) {
+                    if (raycaster.ray.intersectPlane(plane, intersection)) {
+                        selectedObject.position.copy(intersection.sub(offset));
+                    }
+                } else {
+                    // 호버 효과
+                    const intersects = raycaster.intersectObjects(words);
+                    if (intersects.length > 0) {
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1.2) rotate(-10deg)';
+                    } else {
+                        cursor.style.transform = 'translate(-50%, -50%) scale(1) rotate(0deg)';
+                    }
+                }
+            });
+
+            // 드래그 시작
+            window.addEventListener('mousedown', (e) => {
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(words);
+                if (intersects.length > 0) {
+                    selectedObject = intersects[0].object;
+                    selectedObject.userData.isDragging = true;
+                    selectedObject.material.color.set(0xffd700); // 잡으면 금색
+                    selectedObject.material.emissive.set(0x555500);
+
+                    // 드래그 평면 업데이트 (현재 물체 위치 기준)
+                    plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(plane.normal), selectedObject.position);
+
+                    if (raycaster.ray.intersectPlane(plane, intersection)) {
+                        offset.copy(intersection).sub(selectedObject.position);
+                    }
+                }
+            });
+
+            // 드래그 끝
+            window.addEventListener('mouseup', (e) => {
+                if (selectedObject) {
+                    // 드롭 체크
+                    const screenPos = selectedObject.position.clone().project(camera);
+                    const x = (screenPos.x * .5 + .5) * window.innerWidth;
+                    const y = (-(screenPos.y * .5) + .5) * window.innerHeight;
+
+                    checkDropZone(x, y, selectedObject);
+
+                    selectedObject.userData.isDragging = false;
+                    selectedObject.material.color.set(0xffffff); // 색상 복구
+                    selectedObject.material.emissive.set(0x333333);
+                    selectedObject = null;
+                }
+            });
+
+            // 정답 체크
+            let correctCount = 0;
+            function checkDropZone(x, y, object) {
+                const text = object.userData.text;
+                const zone = document.getElementById(`zone-${text.toLowerCase()}`);
+
+                if (zone) {
+                    const rect = zone.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+                        zone.textContent = text;
+                        zone.classList.add('highlight');
+                        
+                        scene.remove(object);
+                        const index = words.indexOf(object);
+                        if (index > -1) words.splice(index, 1);
+
+                        correctCount++;
+                        if (correctCount === 2) {
+                            setTimeout(triggerWin, 500);
+                        }
+                    }
+                }
+            }
+
+            function triggerWin() {
+                document.getElementById('bg-layer').style.opacity = '1'; 
+                document.getElementById('bg-layer').style.filter = 'brightness(1.2)';
+                document.getElementById('archive-modal').classList.add('active');
+                document.body.style.cursor = 'auto';
+                document.getElementById('custom-cursor').style.display = 'none';
+            }
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // --- 5. 애니메이션 루프 ---
+            function animate() {
+                requestAnimationFrame(animate);
+
+                const time = Date.now() * 0.001;
+                const scrollY = window.scrollY;
+                const scrollPercent = scrollY / (document.body.scrollHeight - window.innerHeight);
+
+                // 1. 알 애니메이션 (마우스 + 스크롤)
+                if (eggMesh) {
+                    // 마우스 따라 시선 처리 (Lerp로 부드럽게)
+                    // mouseX가 양수(오른쪽)일 때 알도 오른쪽을 보도록(Y축 회전)
+                    eggMesh.rotation.y += (mouseX * 2 - eggMesh.rotation.y) * 0.05;
+                    
+                    // mouseY가 양수(아래)일 때 알도 아래를 보도록(X축 회전)
+                    // 마우스가 아래로 가면 X축 회전은 양수여야 고개가 숙여짐
+                    eggMesh.rotation.x += (mouseY * 2 - eggMesh.rotation.x) * 0.05;
+                    
+                    // 스크롤에 따른 회전 추가
+                    eggMesh.rotation.z = scrollPercent * Math.PI; // 스크롤하면 한 바퀴 돎
+                }
+
+                // 2. 텍스트 애니메이션 (둥둥 떠다님)
+                words.forEach((word) => {
+                    if (!word.userData.isDragging) {
+                        // 원래 위치 주변을 맴돎
+                        word.position.y = word.userData.basePos.y + Math.sin(time * 2 + word.userData.floatOffset) * 0.5;
+                        word.rotation.y = Math.sin(time * 0.5) * 0.1;
+                        word.rotation.z = Math.cos(time * 0.3) * 0.05;
+                    }
+                });
+
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        } 
+    </script>
+</body>
+</html>
